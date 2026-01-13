@@ -1,5 +1,5 @@
 #!/bin/bash
-# seven-busybox.sh - 一键设置vless+argo (BusyBox 兼容版)
+# seven-busybox.sh - 一键设置vless+argo
 
 set -e
 
@@ -60,13 +60,13 @@ download_file() {
 
 # 安装流程
 install_guided() {
-    echo -e "${GREEN}=== 一键设置vless+argo (BusyBox兼容版) ===${NC}"
+    echo -e "${GREEN}=== 一键设置vless+argo===${NC}"
     
     init_dirs
 
     # 1. 端口配置交互
     echo -e "\n${CYAN}1. 端口配置${NC}"
-    echo -e "${YELLOW}请输入服务监听端口 (1-65535) [默认 10581]: ${NC}\c"
+    echo -e "${YELLOW}请输入服务监听端口 (1-65535) [默认 18001]: ${NC}\c"
     read input_port
     LISTEN_PORT=${input_port:-10581}
 
