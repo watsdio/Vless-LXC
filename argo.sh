@@ -11,6 +11,9 @@ BLUE='\033[0;34m'
 CYAN='\033[0;36m'
 NC='\033[0m'
 
+# 默认设置
+DEFAULT_PORT=18001
+
 # 路径定义
 WORKDIR="$HOME/.seven-proxy"
 BIN_DIR="$WORKDIR/bin"
@@ -60,17 +63,18 @@ download_file() {
 
 # 安装流程
 install_guided() {
-    echo -e "${GREEN}=== 一键设置vless+argo===${NC}"
+    echo -e "${GREEN}=== 一键设置vless+argo ===${NC}"
     
     init_dirs
 
     # 1. 端口配置交互
     echo -e "\n${CYAN}1. 端口配置${NC}"
-    echo -e "${YELLOW}请输入服务监听端口 (1-65535) [默认 18001]: ${NC}\c"
+    echo -e "${YELLOW}请输入服务监听端口 (1-65535) [默认 $DEFAULT_PORT]: ${NC}\c"
     read input_port
-    LISTEN_PORT=${input_port:-10581}
+    LISTEN_PORT=${input_port:-$DEFAULT_PORT}
+    echo -e "设定端口为: ${GREEN}$LISTEN_PORT${NC}"
 
-    # 检查端口是否被占用 (BusyBox 兼容)
+    # 检查端口是否被占用
     if netstat -tln 2>/dev/null | grep -q ":$LISTEN_PORT "; then
         echo -e "${RED}警告: 端口 $LISTEN_PORT 已被占用！${NC}"
         echo -e "是否强制尝试清理该端口? (y/n)[n]: \c"
@@ -81,9 +85,9 @@ install_guided() {
                 [ -n "$pid" ] && kill -9 "$pid" 2>/dev/null || true
             done
             sleep 1
-            echo -e "${GREEN}端口已清理${NC}"
+            echo -e "${GREEN}端口已清理完成${NC}"
         else
-            echo -e "${RED}安装中止。${NC}"
+            echo -e "${RED}安装中止，请更换端口后重试。${NC}"
             exit 1
         fi
     fi
@@ -98,12 +102,12 @@ install_guided() {
         uuid=$(generate_uuid)
         echo -e "UUID: ${GREEN}$uuid${NC}"
     else
-        echo -e "${YELLOW}请输入UUID: ${NC}\c"
+        echo -e "${YELLOW}请输入自定义UUID: ${NC}\c"
         read uuid
-        [ -z "$uuid" ] && uuid=$(generate_uuid) && echo -e "使用自动生成的 UUID: ${GREEN}$uuid${NC}"
+        [ -z "$uuid" ] && uuid=$(generate_uuid) && echo -e "使用生成的 UUID: ${GREEN}$uuid${NC}"
     fi
     
-    # 3. 隧道模式
+    # 3. 隧道模式选择
     echo -e "\n${CYAN}3. 隧道模式选择${NC}"
     echo "1) 临时隧道 (Argo Quick Tunnel)"
     echo "2) 固定隧道 (需 Cloudflare Token)"
@@ -111,7 +115,7 @@ install_guided() {
     read mode
     mode=${mode:-1}
     
-    # 4. 下载二进制
+    # 4. 下载必要组件
     echo -e "\n${CYAN}4. 下载必要组件...${NC}"
     if [ ! -f "$BIN_DIR/sing-box" ]; then
         download_file "https://github.com/SagerNet/sing-box/releases/download/v1.8.11/sing-box-1.8.11-linux-amd64.tar.gz" "/tmp/sing-box.tar.gz"
@@ -165,7 +169,7 @@ EOF
     else
         echo -e "${YELLOW}请输入 Cloudflare Tunnel Token: ${NC}\c"
         read token
-        echo -e "${YELLOW}请输入域名: ${NC}\c"
+        echo -e "${YELLOW}请输入对应的域名: ${NC}\c"
         read domain
         echo "$token" > "$CONFIG_DIR/token.txt"
         echo "$domain" > "$CONFIG_DIR/domain.txt"
@@ -182,8 +186,13 @@ show_results() {
     echo -e "${GREEN}🎉 一键设置vless+argo 配置完成！${NC}"
     echo -e "${GREEN}══════════════════════════════════════════════════════════════${NC}"
     
+    if [ ! -f "$CONFIG_DIR/seven.json" ]; then
+        echo -e "${RED}未发现配置文件，请先执行安装。${NC}"
+        return
+    fi
+
     local uuid=$(grep -o '"uuid": "[^"]*"' "$CONFIG_DIR/seven.json" | head -1 | cut -d'"' -f4)
-    local port=$(cat "$CONFIG_DIR/port.txt" 2>/dev/null || echo "10581")
+    local port=$(cat "$CONFIG_DIR/port.txt" 2>/dev/null || echo "$DEFAULT_PORT")
     
     echo -e "${CYAN}配置详情:${NC}"
     echo -e "  UUID: $uuid"
@@ -193,7 +202,7 @@ show_results() {
     [ -f "$CONFIG_DIR/domain.txt" ] && domain=$(cat "$CONFIG_DIR/domain.txt")
     
     if [ -z "$domain" ]; then
-        echo -e "${YELLOW}正在获取 Argo 临时域名 (请等待 5-10 秒)...${NC}"
+        echo -e "${YELLOW}正在获取 Argo 域名 (约等待 8 秒)...${NC}"
         sleep 8
         domain=$(grep -o 'https://[a-zA-Z0-9-]*\.trycloudflare\.com' "$LOG_DIR/cloudflared.log" 2>/dev/null | tail -1 | sed 's#https://##')
     fi
@@ -201,56 +210,58 @@ show_results() {
     if [ -n "$domain" ]; then
         echo -e "  Argo域名: $domain"
         local path_encoded="%2F${uuid}%3Fed%3D2048"
-        local link="vless://${uuid}@${domain}:443?encryption=none&security=tls&sni=${domain}&host=${domain}&fp=chrome&type=ws&path=${path_encoded}#VLESS_Argo_Proxy"
+        # 备注名包含端口号，方便区分
+        local link="vless://${uuid}@${domain}:443?encryption=none&security=tls&sni=${domain}&host=${domain}&fp=chrome&type=ws&path=${path_encoded}#Argo_VLESS_${port}"
         echo -e "\n${CYAN}节点链接:${NC}\n$link"
         echo "$link" > "$CONFIG_DIR/node-link.txt"
+        echo -e "\n${YELLOW}链接已保存至: $CONFIG_DIR/node-link.txt${NC}"
     else
-        echo -e "${RED}暂时无法获取域名，请运行 [2. 查看状态] 再次尝试。${NC}"
+        echo -e "${RED}域名获取失败，请确认网络连接或运行 [2. 查看状态] 检查日志${NC}"
     fi
 }
 
 # 查看状态
 check_status() {
-    echo -e "${CYAN}=== 一键设置vless+argo 运行状态 ===${NC}"
+    echo -e "${CYAN}=== 运行状态检查 ===${NC}"
     for proc in "sing-box" "cloudflared"; do
         if [ -f "$PID_DIR/$proc.pid" ]; then
             local pid=$(cat "$PID_DIR/$proc.pid")
             if [ -d "/proc/$pid" ]; then
                 echo -e "$proc: ${GREEN}运行中 (PID: $pid)${NC}"
             else
-                echo -e "$proc: ${RED}进程异常退出${NC}"
+                echo -e "$proc: ${RED}进程未运行 (异常退出)${NC}"
             fi
         else
-            echo -e "$proc: ${YELLOW}未运行${NC}"
+            echo -e "$proc: ${YELLOW}未启动${NC}"
         fi
     done
 }
 
 # 停止服务
 stop_services() {
-    echo -e "${YELLOW}正在停止 vless+argo 服务...${NC}"
+    echo -e "${YELLOW}正在停止 vless+argo 相关服务...${NC}"
     pkill -f "sing-box" 2>/dev/null || true
     pkill -f "cloudflared" 2>/dev/null || true
     rm -f "$PID_DIR"/*.pid
-    echo -e "${GREEN}服务已全部停止${NC}"
+    echo -e "${GREEN}所有服务已停止${NC}"
 }
 
 # 卸载
 uninstall() {
-    echo -e "${RED}警告：即将完全删除所有配置和二进制文件！${NC}"
-    echo -e "确定要卸载吗? (y/n): \c"
+    echo -e "${RED}这将删除所有程序文件和配置！${NC}"
+    echo -e "确认卸载? (y/n): \c"
     read confirm
     if [[ "$confirm" =~ ^[Yy]$ ]]; then
         stop_services
         rm -rf "$WORKDIR"
-        echo -e "${GREEN}卸载成功${NC}"
+        echo -e "${GREEN}卸载完成。${NC}"
     fi
 }
 
-# 菜单
+# 菜单显示
 show_menu() {
-    echo -e "\n${GREEN}一键设置vless+argo (BusyBox版)${NC}"
-    echo "1. 安装 / 重新配置 (含端口设置)"
+    echo -e "\n${GREEN}一键设置vless+argo${NC}"
+    echo "1. 安装 / 重新配置 (默认端口 $DEFAULT_PORT)"
     echo "2. 查看当前状态及链接"
     echo "3. 停止服务"
     echo "4. 完全卸载"
@@ -258,7 +269,7 @@ show_menu() {
     echo -e "${YELLOW}请选择 [1-5]: ${NC}\c"
 }
 
-# 主函数
+# 主程序入口
 main() {
     case "${1:-}" in
         install) install_guided ;;
@@ -274,7 +285,7 @@ main() {
                     3) stop_services ;;
                     4) uninstall ;;
                     5) exit 0 ;;
-                    *) echo -e "${RED}输入有误，请重新选择${NC}" ;;
+                    *) echo -e "${RED}无效选择，请重新输入${NC}" ;;
                 esac
             done
             ;;
