@@ -206,7 +206,7 @@ EOF
     if [ "$mode" = "1" ]; then
         # 临时隧道
         echo -e "\n${CYAN}启动临时隧道...${NC}"
-        nohup "$BIN_DIR/cloudflared" tunnel --url http://localhost:2777 > "$LOG_DIR/cloudflared.log" 2>&1 &
+        nohup "$BIN_DIR/cloudflared" tunnel --url http://localhost:10581 > "$LOG_DIR/cloudflared.log" 2>&1 &
         echo $! > "$PID_DIR/cloudflared.pid"
         
         echo -e "${YELLOW}等待隧道建立...${NC}"
