@@ -38,7 +38,7 @@ check_process() {
 
 # 清理端口 (BusyBox 兼容)
 clean_port() {
-    local port=2777
+    local port=10581
     echo -e "${YELLOW}清理端口 $port...${NC}"
     
     # 使用 netstat 查找进程
@@ -163,7 +163,7 @@ install_guided() {
       "type": "vless", 
       "tag": "proxy", 
       "listen": "0.0.0.0", 
-      "listen_port": 2777,
+      "listen_port": 10581,
       "users": [ 
         { 
           "uuid": "$uuid", 
@@ -255,7 +255,7 @@ show_results() {
     
     echo -e "${CYAN}配置信息:${NC}"
     echo -e "  UUID: ${uuid:-未知}"
-    echo -e "  本地端口: 2777"
+    echo -e "  本地端口: 10581"
     
     # 获取域名
     local domain=""
@@ -317,10 +317,10 @@ check_status() {
     
     # 检查端口
     echo -e "\n${CYAN}端口状态:${NC}"
-    if netstat -tln 2>/dev/null | grep -q ":2777"; then
-        echo -e "2777端口: ${GREEN}监听正常${NC}"
+    if netstat -tln 2>/dev/null | grep -q ":10581"; then
+        echo -e "10581端口: ${GREEN}监听正常${NC}"
     else
-        echo -e "2777端口: ${RED}未监听${NC}"
+        echo -e "10581端口: ${RED}未监听${NC}"
     fi
     
     # 显示域名
